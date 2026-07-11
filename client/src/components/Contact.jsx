@@ -30,13 +30,42 @@ const Contact = () => {
     updates: false,
   });
   const [status, setStatus] = useState('');
+  const [errors, setErrors] = useState({});
+
+  const inputClassName = (fieldName) =>
+    `mt-2 w-full rounded-2xl border px-4 py-3 text-white outline-none ring-0 ${
+      errors[fieldName] ? 'border-red-500 bg-[#09090B]' : 'border-white/10 bg-[#09090B]'
+    }`;
+
+  const sanitizeValue = (name, value) => {
+    switch (name) {
+      case 'name':
+      case 'lastName':
+      case 'country':
+      case 'city':
+        return value.replace(/[^A-Za-z\s.'-]/g, '');
+      case 'phone':
+        return value.replace(/\D/g, '').slice(0, 10);
+      case 'handle':
+        return value.replace(/[^A-Za-z0-9._-]/g, '');
+      case 'niche':
+        return value.replace(/[^A-Za-z0-9\s&,'().-]/g, '');
+      case 'followers':
+      case 'views':
+        return value.replace(/[^0-9kKmM+]/g, '').slice(0, 15);
+      default:
+        return value;
+    }
+  };
 
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target;
+    const nextValue = type === 'checkbox' ? checked : sanitizeValue(name, value);
     setForm((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value,
+      [name]: nextValue,
     }));
+    setErrors((prev) => ({ ...prev, [name]: undefined }));
   };
 
   const handleMultiSelect = (name, value) => {
@@ -47,10 +76,63 @@ const Contact = () => {
         [name]: current.includes(value) ? current.filter((item) => item !== value) : [...current, value],
       };
     });
+    setErrors((prev) => ({ ...prev, [name]: undefined }));
+  };
+
+  const validateForm = () => {
+    const nextErrors = {};
+    const textOnlyPattern = /^[A-Za-z\s.'-]+$/;
+    const handlePattern = /^[A-Za-z0-9._-]+$/;
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const urlPattern = /^(https?:\/\/)?([\w-]+\.)+[\w-]+(\/[\w\-._~:/?#[\]@!$&'()*+,;=]*)?$/i;
+    const numberPattern = /^(\d+([kKmM])?)$/;
+
+    if (!form.name.trim()) nextErrors.name = 'First name is required.';
+    else if (!textOnlyPattern.test(form.name)) nextErrors.name = 'Only letters, spaces, hyphens, and apostrophes are allowed.';
+
+    if (!form.lastName.trim()) nextErrors.lastName = 'Last name is required.';
+    else if (!textOnlyPattern.test(form.lastName)) nextErrors.lastName = 'Only letters, spaces, hyphens, and apostrophes are allowed.';
+
+    if (!form.email.trim()) nextErrors.email = 'Email address is required.';
+    else if (!emailPattern.test(form.email)) nextErrors.email = 'Please enter a valid email address.';
+
+    if (form.phone && !/^\d{10}$/.test(form.phone)) nextErrors.phone = 'Phone number must be exactly 10 digits.';
+
+    if (!form.country.trim()) nextErrors.country = 'Country is required.';
+    else if (!textOnlyPattern.test(form.country)) nextErrors.country = 'Only letters, spaces, hyphens, and apostrophes are allowed.';
+
+    if (form.city && !textOnlyPattern.test(form.city)) nextErrors.city = 'Only letters, spaces, hyphens, and apostrophes are allowed.';
+
+    if (!form.handle.trim()) nextErrors.handle = 'Creator handle is required.';
+    else if (!handlePattern.test(form.handle)) nextErrors.handle = 'Use letters, numbers, dot, underscore, or hyphen only.';
+
+    if (!form.niche.trim()) nextErrors.niche = 'Content niche is required.';
+    else if (!/^[A-Za-z0-9\s&,'().-]+$/.test(form.niche)) nextErrors.niche = 'Only letters, numbers, spaces, and basic punctuation are allowed.';
+
+    if (form.platforms.length === 0) nextErrors.platforms = 'Select at least one platform.';
+
+    if (form.followers && !numberPattern.test(form.followers)) nextErrors.followers = 'Use numbers only, for example 100k or 50000.';
+    if (form.views && !numberPattern.test(form.views)) nextErrors.views = 'Use numbers only, for example 20k or 50000.';
+
+    if (!form.channelLink.trim()) nextErrors.channelLink = 'Channel link is required.';
+    else if (!urlPattern.test(form.channelLink)) nextErrors.channelLink = 'Enter a valid URL.';
+
+    if (!form.about.trim()) nextErrors.about = 'Please tell us about yourself.';
+    if (!form.terms) nextErrors.terms = 'You must agree to the terms and conditions.';
+
+    setErrors(nextErrors);
+    return nextErrors;
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    const validationErrors = validateForm();
+
+    if (Object.keys(validationErrors).length > 0) {
+      setStatus('Please fix the highlighted fields before submitting.');
+      return;
+    }
+
     setStatus('Sending your application...');
 
     const payload = {
@@ -59,7 +141,7 @@ const Contact = () => {
     };
 
     try {
-      await axios.post('http://localhost:5000/api/contact', payload);
+      await axios.post('https://fan-fast.onrender.com/api/contact', payload);
       setStatus('Application sent successfully.');
       setForm({
         name: '',
@@ -83,6 +165,7 @@ const Contact = () => {
         consent: false,
         updates: false,
       });
+      setErrors({});
     } catch (error) {
       setStatus(error.response?.data?.message || 'Something went wrong.');
     }
@@ -97,27 +180,33 @@ const Contact = () => {
           <div className="mt-6 grid gap-6 md:grid-cols-2">
             <label className="text-sm text-slate-300">
               First Name *
-              <input required name="name" value={form.name} onChange={handleChange} placeholder="e.g. Alex" className="mt-2 w-full rounded-2xl border border-white/10 bg-[#09090B] px-4 py-3 text-white outline-none ring-0" />
+              <input required name="name" value={form.name} onChange={handleChange} placeholder="e.g. Alex" className={inputClassName('name')} />
+              {errors.name && <p className="mt-2 text-xs text-red-400">{errors.name}</p>}
             </label>
             <label className="text-sm text-slate-300">
               Last Name *
-              <input required name="lastName" value={form.lastName} onChange={handleChange} placeholder="e.g. Rivera" className="mt-2 w-full rounded-2xl border border-white/10 bg-[#09090B] px-4 py-3 text-white outline-none ring-0" />
+              <input required name="lastName" value={form.lastName} onChange={handleChange} placeholder="e.g. Rivera" className={inputClassName('lastName')} />
+              {errors.lastName && <p className="mt-2 text-xs text-red-400">{errors.lastName}</p>}
             </label>
             <label className="text-sm text-slate-300">
               Email Address *
-              <input required type="email" name="email" value={form.email} onChange={handleChange} placeholder="hello@yoursite.com" className="mt-2 w-full rounded-2xl border border-white/10 bg-[#09090B] px-4 py-3 text-white outline-none ring-0" />
+              <input required type="email" name="email" value={form.email} onChange={handleChange} placeholder="hello@yoursite.com" className={inputClassName('email')} />
+              {errors.email && <p className="mt-2 text-xs text-red-400">{errors.email}</p>}
             </label>
             <label className="text-sm text-slate-300">
               Phone Number
-              <input name="phone" value={form.phone} onChange={handleChange} placeholder="+91 9876543210" className="mt-2 w-full rounded-2xl border border-white/10 bg-[#09090B] px-4 py-3 text-white outline-none ring-0" />
+              <input name="phone" value={form.phone} onChange={handleChange} placeholder="9876543210" className={inputClassName('phone')} maxLength={10} inputMode="numeric" />
+              {errors.phone && <p className="mt-2 text-xs text-red-400">{errors.phone}</p>}
             </label>
             <label className="text-sm text-slate-300">
               Country *
-              <input required name="country" value={form.country} onChange={handleChange} placeholder="India" className="mt-2 w-full rounded-2xl border border-white/10 bg-[#09090B] px-4 py-3 text-white outline-none ring-0" />
+              <input required name="country" value={form.country} onChange={handleChange} placeholder="India" className={inputClassName('country')} />
+              {errors.country && <p className="mt-2 text-xs text-red-400">{errors.country}</p>}
             </label>
             <label className="text-sm text-slate-300">
               City
-              <input name="city" value={form.city} onChange={handleChange} placeholder="Mumbai" className="mt-2 w-full rounded-2xl border border-white/10 bg-[#09090B] px-4 py-3 text-white outline-none ring-0" />
+              <input name="city" value={form.city} onChange={handleChange} placeholder="Mumbai" className={inputClassName('city')} />
+              {errors.city && <p className="mt-2 text-xs text-red-400">{errors.city}</p>}
             </label>
           </div>
 
@@ -125,37 +214,52 @@ const Contact = () => {
           <div className="mt-6 grid gap-6 md:grid-cols-2">
             <label className="text-sm text-slate-300">
               Primary Creator Handle / Name *
-              <input required name="handle" value={form.handle} onChange={handleChange} placeholder="@yourname" className="mt-2 w-full rounded-2xl border border-white/10 bg-[#09090B] px-4 py-3 text-white outline-none ring-0" />
+              <input required name="handle" value={form.handle} onChange={handleChange} placeholder="@yourname" className={inputClassName('handle')} />
+              {errors.handle && <p className="mt-2 text-xs text-red-400">{errors.handle}</p>}
             </label>
             <label className="text-sm text-slate-300">
               Content Niche *
-              <input required name="niche" value={form.niche} onChange={handleChange} placeholder="Gaming, Fashion, Tech..." className="mt-2 w-full rounded-2xl border border-white/10 bg-[#09090B] px-4 py-3 text-white outline-none ring-0" />
+              <input required name="niche" value={form.niche} onChange={handleChange} placeholder="Gaming, Fashion, Tech..." className={inputClassName('niche')} />
+              {errors.niche && <p className="mt-2 text-xs text-red-400">{errors.niche}</p>}
             </label>
             <label className="text-sm text-slate-300 md:col-span-2">
               Primary Platform(s) *
               <div className="mt-3 flex flex-wrap gap-3">
                 {platformOptions.map((platform) => (
-                  <button type="button" key={platform} onClick={() => handleMultiSelect('platforms', platform)} className={`rounded-full border px-4 py-2 text-sm transition ${form.platforms.includes(platform) ? 'border-fuchsia-500 bg-fuchsia-500/15 text-fuchsia-300' : 'border-white/10 bg-slate-900 text-slate-300'}`}>
+                  <button
+                    type="button"
+                    key={platform}
+                    onClick={() => handleMultiSelect('platforms', platform)}
+                    className={`rounded-full border px-4 py-2 text-sm transition ${
+                      form.platforms.includes(platform)
+                        ? 'border-fuchsia-500 bg-fuchsia-500/15 text-fuchsia-300'
+                        : 'border-white/10 bg-slate-900 text-slate-300'
+                    } ${errors.platforms ? 'border-red-500' : ''}`}
+                  >
                     {platform}
                   </button>
                 ))}
               </div>
+              {errors.platforms && <p className="mt-2 text-xs text-red-400">{errors.platforms}</p>}
             </label>
             <label className="text-sm text-slate-300">
               Total Followers / Subscribers
-              <input name="followers" value={form.followers} onChange={handleChange} placeholder="100k+" className="mt-2 w-full rounded-2xl border border-white/10 bg-[#09090B] px-4 py-3 text-white outline-none ring-0" />
+              <input name="followers" value={form.followers} onChange={handleChange} placeholder="100k+" className={inputClassName('followers')} />
+              {errors.followers && <p className="mt-2 text-xs text-red-400">{errors.followers}</p>}
             </label>
             <label className="text-sm text-slate-300">
               Average Views Per Post
-              <input name="views" value={form.views} onChange={handleChange} placeholder="20k" className="mt-2 w-full rounded-2xl border border-white/10 bg-[#09090B] px-4 py-3 text-white outline-none ring-0" />
+              <input name="views" value={form.views} onChange={handleChange} placeholder="20k" className={inputClassName('views')} />
+              {errors.views && <p className="mt-2 text-xs text-red-400">{errors.views}</p>}
             </label>
             <label className="text-sm text-slate-300">
               Primary Channel / Profile Link *
-              <input required name="channelLink" value={form.channelLink} onChange={handleChange} placeholder="https://youtube.com/..." className="mt-2 w-full rounded-2xl border border-white/10 bg-[#09090B] px-4 py-3 text-white outline-none ring-0" />
+              <input required name="channelLink" value={form.channelLink} onChange={handleChange} placeholder="https://youtube.com/..." className={inputClassName('channelLink')} />
+              {errors.channelLink && <p className="mt-2 text-xs text-red-400">{errors.channelLink}</p>}
             </label>
             <label className="text-sm text-slate-300">
               Other Social Media Links
-              <input name="socialLinks" value={form.socialLinks} onChange={handleChange} placeholder="Instagram, TikTok, X..." className="mt-2 w-full rounded-2xl border border-white/10 bg-[#09090B] px-4 py-3 text-white outline-none ring-0" />
+              <input name="socialLinks" value={form.socialLinks} onChange={handleChange} placeholder="Instagram, TikTok, X..." className={inputClassName('socialLinks')} />
             </label>
           </div>
 
@@ -165,7 +269,16 @@ const Contact = () => {
               Interested in (select all that apply)
               <div className="mt-3 flex flex-wrap gap-3">
                 {interestOptions.map((interest) => (
-                  <button type="button" key={interest} onClick={() => handleMultiSelect('interests', interest)} className={`rounded-full border px-4 py-2 text-sm transition ${form.interests.includes(interest) ? 'border-fuchsia-500 bg-fuchsia-500/15 text-fuchsia-300' : 'border-white/10 bg-[#09090B] text-slate-300'}`}>
+                  <button
+                    type="button"
+                    key={interest}
+                    onClick={() => handleMultiSelect('interests', interest)}
+                    className={`rounded-full border px-4 py-2 text-sm transition ${
+                      form.interests.includes(interest)
+                        ? 'border-fuchsia-500 bg-fuchsia-500/15 text-fuchsia-300'
+                        : 'border-white/10 bg-[#09090B] text-slate-300'
+                    }`}
+                  >
                     {interest}
                   </button>
                 ))}
@@ -173,37 +286,39 @@ const Contact = () => {
             </label>
             <label className="text-sm text-slate-300">
               Tell us about yourself & why you want to join *
-              <textarea required name="about" value={form.about} onChange={handleChange} rows="5" placeholder="Share your story, audience, and what makes your content special." className="mt-2 w-full rounded-2xl border border-white/10 bg-[#09090B] px-4 py-3 text-white outline-none ring-0" />
+              <textarea required name="about" value={form.about} onChange={handleChange} rows="5" placeholder="Share your story, audience, and what makes your content special." className={inputClassName('about')} />
+              {errors.about && <p className="mt-2 text-xs text-red-400">{errors.about}</p>}
             </label>
             <label className="text-sm text-slate-300">
               Previous Event Experience
-              <textarea name="experience" value={form.experience} onChange={handleChange} rows="4" placeholder="List any previous creator or event experience." className="mt-2 w-full rounded-2xl border border-white/10 bg-[#09090B] px-4 py-3 text-white outline-none ring-0" />
+              <textarea name="experience" value={form.experience} onChange={handleChange} rows="4" placeholder="List any previous creator or event experience." className={inputClassName('experience')} />
             </label>
             <label className="text-sm text-slate-300">
               How did you hear about FanFest 2026?
-              <input name="source" value={form.source} onChange={handleChange} placeholder="Social media, referral, newsletter..." className="mt-2 w-full rounded-2xl border border-white/10 bg-[#09090B] px-4 py-3 text-white outline-none ring-0" />
+              <input name="source" value={form.source} onChange={handleChange} placeholder="Social media, referral, newsletter..." className={inputClassName('source')} />
             </label>
           </div>
 
           <div className="mt-8 space-y-3 text-sm text-slate-400">
             <label className="flex items-start gap-3">
               <input type="checkbox" checked={form.terms} onChange={handleChange} name="terms" className="mt-1" />
-              <span className='text-red-500'>I agree to FanFest 2026's Terms & Conditions and Creator Code of Conduct.</span>
+              <span className="text-red-500">I agree to FanFest 2026's Terms & Conditions and Creator Code of Conduct.</span>
             </label>
+            {errors.terms && <p className="ml-6 text-xs text-red-400">{errors.terms}</p>}
             <label className="flex items-start gap-3">
               <input type="checkbox" checked={form.consent} onChange={handleChange} name="consent" className="mt-1" />
-              <span className='text-red-500'>I consent to photos and videos of me being used in FanFest marketing materials.</span>
+              <span className="text-red-500">I consent to photos and videos of me being used in FanFest marketing materials.</span>
             </label>
             <label className="flex items-start gap-3">
               <input type="checkbox" checked={form.updates} onChange={handleChange} name="updates" className="mt-1" />
-              <span className='text-red-500'>Keep me updated with FanFest news and future opportunities.</span>
+              <span className="text-red-500">Keep me updated with FanFest news and future opportunities.</span>
             </label>
           </div>
 
           <button type="submit" className="mt-8 rounded-full bg-red-500 px-6 py-3 font-semibold text-white transition hover:bg-red-500">
             Submit My Application →
           </button>
-          {status && <p className="mt-4 text-sm text-slate-400">{status}</p>}
+          {status && <p className={`mt-4 text-sm ${Object.keys(errors).length > 0 ? 'text-red-400' : 'text-slate-400'}`}>{status}</p>}
         </motion.form>
       </div>
     </section>
