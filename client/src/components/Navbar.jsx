@@ -19,7 +19,7 @@ const Navbar = () => {
           FanFest 2026
         </a>
         
-        <a href="apply" className="hidden rounded-full border border-fuchsia-500/60 bg-red-500 px-4 py-2 text-sm font-medium text-fuchsia-200 transition hover:bg-red-500/20 md:inline-flex">
+        <a href="#apply" className="hidden rounded-full border border-fuchsia-500/60 bg-red-500 px-4 py-2 text-sm font-medium text-fuchsia-200 transition hover:bg-red-500/20 md:inline-flex">
           Apply Now
         </a>
         <button
